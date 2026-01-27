@@ -1,0 +1,21 @@
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
+
+# Archivos de entorno virtual
+venv/
+.env
+
+# Archivos de logs
+*.log
+
+# Carpetas de resultados o datos pesados
+data/
+output/
+
+
+info.txt
