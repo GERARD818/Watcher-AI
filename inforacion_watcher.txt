@@ -1,0 +1,71 @@
+================================================================                
+                WATCHER AI - PROJECT SPECIFICATIONS
+================================================================
+
+1. DESCRIPCIÓN GENERAL
+Watcher AI es un sistema de visión artificial industrial End-to-End para el 
+monitoreo de seguridad y logística en tiempo real. El sistema detecta 
+objetos (EPIs, maquinaria, personas), gestiona alertas de seguridad y 
+realiza analítica avanzada sobre grandes volúmenes de datos históricos.
+
+2. OBJETIVOS TÉCNICOS
+- Implementar un pipeline asíncrono de inferencia de IA.
+- Gestionar Big Data industrial usando motores de alto rendimiento (Polars).
+- Garantizar la escalabilidad mediante microservicios dockerizados.
+- Mantener un ciclo de vida de ML (MLOps) profesional.
+
+3. TECH STACK (THE "SILICON VALLEY" STACK)
+- IA/ML: PyTorch, YOLOv10 (Object Detection), Autoencoders (Anomaly Detection).
+- Backend: FastAPI (Python 3.11+), Pydantic V2.
+- Data Processing: Polars (Engine), DuckDB (OLAP), Pandas (Legacy compatibility).
+- Ingesta/Colas: Redis (Message Broker), Celery o RQ (Task Queue).
+- Persistencia: PostgreSQL (Relational Data + JSONB para detecciones).
+- Infraestructura: Docker & Docker Compose.
+- MLOps: MLflow (Experiment Tracking), GitHub Actions (CI/CD).
+- Monitorización: Grafana + Prometheus.
+
+4. ARQUITECTURA DE SISTEMA (5 CAPAS)
+A. CAPA DE INGESTA: Un simulador/cámara envía frames vía HTTP/RTSP a la API.
+B. CAPA DE INFERENCIA: FastAPI recibe la imagen -> La pone en Redis -> 
+   Un Worker de PyTorch procesa la imagen y devuelve resultados.
+C. CAPA DE PERSISTENCIA: Los eventos se guardan en PostgreSQL (detecciones, 
+   confianza, timestamps, metadatos).
+D. CAPA DE ANALYTICS: Servicio independiente con Polars que lee de la DB 
+   y genera reportes de rendimiento y detección de anomalías.
+E. CAPA DE MLOPS: MLflow gestiona las versiones del modelo .pt y GitHub 
+   Actions automatiza los tests y el building de imágenes Docker.
+
+5. ESTRUCTURA DEL REPOSITORIO
+/
+├── .github/workflows/   # CI/CD pipelines
+├── docker/              # Dockerfiles (api.Dockerfile, worker.Dockerfile, etc.)
+├── src/
+│   ├── api/             # FastAPI app y rutas
+│   ├── core/            # Modelos de IA (PyTorch/YOLO) y preprocesamiento
+│   ├── workers/         # Lógica de procesamiento asíncrono (Redis)
+│   ├── analytics/       # Análisis con Polars y DuckDB
+│   └── database/        # Modelos SQL y migraciones
+├── notebooks/           # Experimentos de entrenamiento y EDA
+├── models/              # Pesos de modelos (ignorados en git, gestionados por DVC/MLflow)
+├── data/                # Datasets locales (ignorados en git)
+├── docker-compose.yml   # Orquestación de servicios
+├── requirements.txt     # Dependencias del proyecto
+└── README.md            # Documentación comercial/técnica
+
+6. ESQUEMA DE DATOS (POSTGRESQL)
+- Table: `detections` (id, camera_id, timestamp, label, confidence, bbox, metadata_jsonb)
+- Table: `alerts` (id, type, severity, description, timestamp, frame_path)
+- Table: `cameras` (id, location, status, last_heartbeat)
+
+7. ENDPOINTS CLAVE (API V1)
+- POST /v1/ingest/frame: Recibe imagen y la encola.
+- GET /v1/detections/recent: Consulta de detecciones en vivo.
+- GET /v1/analytics/stats: Ejecuta queries de Polars sobre el histórico.
+- GET /health: Status de la infraestructura.
+
+8. PRÓXIMOS PASOS (ROADMAP)
+1. Setup de Docker Compose (API + DB + Redis).
+2. Definición de modelos Pydantic para el contrato de API.
+3. Integración de modelo YOLOv10 base en el worker.
+4. Implementación de lógica de Analytics con Polars sobre 100k+ registros.
+================================================================
