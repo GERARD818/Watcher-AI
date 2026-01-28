@@ -1,0 +1,38 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: watcher_db
+    restart: always
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: watcher_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:alpine
+    container_name: watcher_redis
+    ports:
+      - "6379:6379"
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    container_name: watcher_api
+    volumes:
+      - ./src:/app/src
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/watcher_db
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - db
+      - redis
+
+volumes:
+  postgres_data:
