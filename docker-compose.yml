@@ -25,6 +25,7 @@ services:
     container_name: watcher_api
     volumes:
       - ./src:/app/src
+      - ./data/uploads:/app/data/uploads
     ports:
       - "8000:8000"
     environment:

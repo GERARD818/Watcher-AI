@@ -1,33 +1,45 @@
+import os
+import uuid
+import redis
+import json
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from datetime import datetime
-import uuid
 
 app = FastAPI(title="Watcher AI - API Ingest")
 
-@app.get("/health")
-def health_check():
-    return {"status": "online", "timestamp": datetime.now()}
+# Conexión a Redis usando la URL de las variables de entorno de Docker
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379")
+redis_client = redis.from_url(REDIS_URL, decode_responses=True)
 
 @app.post("/v1/ingest/frame")
 async def ingest_frame(
     camera_id: str = Form(...),
     image: UploadFile = File(...)
 ):
-    # 1. Validar que es una imagen
     if not image.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="El archivo enviado no es una imagen")
+        raise HTTPException(status_code=400, detail="No es una imagen válida")
 
-    # 2. Generar un ID único para el evento
     event_id = str(uuid.uuid4())
     
-    # 3. Leer el contenido (aquí es donde luego lo mandaríamos a Redis)
-    # contenido = await image.read()
+    # 1. Guardar la imagen físicamente
+    # Para que el Worker pueda leerla, la guardamos en una carpeta compartida
+    file_path = f"/app/data/uploads/{event_id}.jpg"
+    with open(file_path, "wb") as buffer:
+        buffer.write(await image.read())
 
-    # TODO: Enviar metadatos a PostgreSQL y la imagen a la cola de Redis
+    # 2. Crear el mensaje para la cola
+    task_data = {
+        "event_id": event_id,
+        "camera_id": camera_id,
+        "file_path": file_path,
+        "timestamp": datetime.now().isoformat()
+    }
+
+    # 3. Purgar a la cola de Redis (LPUSH actúa como una cola)
+    redis_client.lpush("inference_queue", json.dumps(task_data))
     
     return {
         "event_id": event_id,
-        "camera_id": camera_id,
-        "filename": image.filename,
-        "status": "queued_for_inference"
+        "status": "queued",
+        "queue_position": redis_client.llen("inference_queue")
     }
