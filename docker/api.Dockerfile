@@ -13,7 +13,7 @@ COPY docker/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copiamos el código fuente
-COPY . .
+COPY src/ ./src/
 
 # Exponemos el puerto de FastAPI
 EXPOSE 8000
