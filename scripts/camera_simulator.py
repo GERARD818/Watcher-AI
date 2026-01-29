@@ -1,7 +1,8 @@
+import sys
 import requests
 import time
 import os
-
+sys.path.append(os.getcwd())
 # Configuración
 API_URL = "http://localhost:8000/v1/ingest/frame"
 CAMERA_ID = "CAM-NORTH-01"
