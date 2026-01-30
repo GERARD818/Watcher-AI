@@ -1,39 +1,70 @@
-services:
-  db:
-    image: postgres:15-alpine
-    container_name: watcher_db
-    restart: always
-    environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: watcher_db
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+version: '3.8'
 
+services:
+  # --- BASE DE DATOS ---
+  db:
+      image: postgres:15
+      restart: always # (Opcional, pero recomendado)
+      ports:             # <--- AÑADE ESTO
+        - "5432:5432"    # <--- AÑADE ESTO
+      environment:
+        POSTGRES_USER: user
+        POSTGRES_PASSWORD: password
+        POSTGRES_DB: watcher_db
+      volumes:
+        - postgres_data:/var/lib/postgresql/data
+      healthcheck:
+        test: ["CMD-SHELL", "pg_isready -U user -d watcher_db"]
+        interval: 5s
+        timeout: 5s
+        retries: 5
+
+  # --- REDIS (Cola de mensajes) ---
   redis:
     image: redis:alpine
     container_name: watcher_redis
     ports:
       - "6379:6379"
 
+  # --- TU API (Usa el CMD por defecto del Dockerfile) ---
   api:
-    build:
-      context: .
-      dockerfile: docker/api.Dockerfile
+    build: .
     container_name: watcher_api
-    volumes:
-      - ./src:/app/src
-      - ./data/uploads:/app/data/uploads
     ports:
       - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
     environment:
       - DATABASE_URL=postgresql://user:password@db:5432/watcher_db
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      - db
-      - redis
+      - REDIS_HOST=redis
+    volumes:
+      - ./src:/app/src  # Para desarrollo: ver cambios sin reconstruir
+
+  # --- TU WORKER (Sobreescribe el comando para inicializar y procesar) ---
+  worker:
+      build:
+        context: .
+      container_name: watcher_worker
+      restart: on-failure
+      depends_on:
+        db:
+          condition: service_healthy
+        redis:
+          condition: service_started
+      environment:
+        - DATABASE_URL=postgresql://user:password@db:5432/watcher_db
+        - REDIS_HOST=redis
+        - REDIS_PORT=6379
+        - PYTHONPATH=/app
+        - PYTHONUNBUFFERED=1
+      command: sh -c "python scripts/init_db.py && python src/workers/main.py"
+      volumes:
+        - ./src:/app/src
+        - ./data:/app/data
+        - ./models:/app/models
 
 volumes:
   postgres_data:

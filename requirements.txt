@@ -9,3 +9,4 @@ torch
 torchvision
 opencv-python-headless
 sqlmodel
+ultralytics
