@@ -16,5 +16,6 @@ venv/
 # Carpetas de resultados o datos pesados
 data/
 output/
+raw_data/
 
 

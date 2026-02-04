@@ -1,0 +1,16 @@
+# --- MOTOR DE IA (El "Cerebro") ---
+# Nota: ultralytics instalará torch y torchvision automáticamente como dependencias.
+ultralytics
+
+# --- VISIÓN ARTIFICIAL ---
+# Usamos 'headless' porque en Docker no hay monitor. 
+# Evita errores de dependencias de interfaz gráfica (X11/Qt).
+opencv-python-headless
+
+# --- BASE DE DATOS (Persistencia) ---
+# SQLModel ya incluye SQLAlchemy y Pydantic v2
+sqlmodel
+psycopg2-binary
+
+# --- COMUNICACIÓN (Mensajería) ---
+redis

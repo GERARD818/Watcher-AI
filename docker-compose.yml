@@ -3,21 +3,22 @@ version: '3.8'
 services:
   # --- BASE DE DATOS ---
   db:
-      image: postgres:15
-      restart: always # (Opcional, pero recomendado)
-      ports:             # <--- AÑADE ESTO
-        - "5432:5432"    # <--- AÑADE ESTO
-      environment:
-        POSTGRES_USER: user
-        POSTGRES_PASSWORD: password
-        POSTGRES_DB: watcher_db
-      volumes:
-        - postgres_data:/var/lib/postgresql/data
-      healthcheck:
-        test: ["CMD-SHELL", "pg_isready -U user -d watcher_db"]
-        interval: 5s
-        timeout: 5s
-        retries: 5
+    image: postgres:15-alpine
+    container_name: watcher_db
+    restart: always
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: watcher_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck: # <--- IMPORTANTE: Avisa cuando la DB acepta conexiones
+      test: ["CMD-SHELL", "pg_isready -U user -d watcher_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   # --- REDIS (Cola de mensajes) ---
   redis:
@@ -26,9 +27,11 @@ services:
     ports:
       - "6379:6379"
 
-  # --- TU API (Usa el CMD por defecto del Dockerfile) ---
+  # --- API (Ingesta) ---
   api:
-    build: .
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
     container_name: watcher_api
     ports:
       - "8000:8000"
@@ -39,32 +42,33 @@ services:
         condition: service_started
     environment:
       - DATABASE_URL=postgresql://user:password@db:5432/watcher_db
-      - REDIS_HOST=redis
+      - REDIS_URL=redis://watcher_redis:6379
     volumes:
-      - ./src:/app/src  # Para desarrollo: ver cambios sin reconstruir
+      - ./src:/app/src
+      - ./data/uploads:/app/data/uploads
 
-  # --- TU WORKER (Sobreescribe el comando para inicializar y procesar) ---
+  # --- WORKER (IA + DB Init) ---
   worker:
-      build:
-        context: .
-      container_name: watcher_worker
-      restart: on-failure
-      depends_on:
-        db:
-          condition: service_healthy
-        redis:
-          condition: service_started
-      environment:
-        - DATABASE_URL=postgresql://user:password@db:5432/watcher_db
-        - REDIS_HOST=redis
-        - REDIS_PORT=6379
-        - PYTHONPATH=/app
-        - PYTHONUNBUFFERED=1
-      command: sh -c "python scripts/init_db.py && python src/workers/main.py"
-      volumes:
-        - ./src:/app/src
-        - ./data:/app/data
-        - ./models:/app/models
+    build:
+      context: .
+      dockerfile: docker/worker.Dockerfile
+    container_name: watcher_worker
+    restart: on-failure
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/watcher_db
+      - REDIS_HOST=watcher_redis
+      - PYTHONPATH=/app
+    # Encadenamos: 1º crea tablas, 2º arranca IA
+    command: sh -c "python scripts/init_db.py && python src/workers/main.py"
+    volumes:
+      - ./src:/app/src
+      - ./data/uploads:/app/data/uploads
+      - ./models:/app/models
 
 volumes:
   postgres_data:
