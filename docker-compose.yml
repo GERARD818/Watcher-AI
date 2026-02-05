@@ -1,4 +1,7 @@
+version: '3.8'
+
 services:
+  # --- BASE DE DATOS ---
   db:
     image: postgres:15-alpine
     container_name: watcher_db
@@ -11,29 +14,61 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck: # <--- IMPORTANTE: Avisa cuando la DB acepta conexiones
+      test: ["CMD-SHELL", "pg_isready -U user -d watcher_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
+  # --- REDIS (Cola de mensajes) ---
   redis:
     image: redis:alpine
     container_name: watcher_redis
     ports:
       - "6379:6379"
 
+  # --- API (Ingesta) ---
   api:
     build:
       context: .
       dockerfile: docker/api.Dockerfile
     container_name: watcher_api
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/watcher_db
+      - REDIS_URL=redis://watcher_redis:6379
     volumes:
       - ./src:/app/src
       - ./data/uploads:/app/data/uploads
-    ports:
-      - "8000:8000"
+
+  # --- WORKER (IA + DB Init) ---
+  worker:
+    build:
+      context: .
+      dockerfile: docker/worker.Dockerfile
+    container_name: watcher_worker
+    restart: on-failure
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
     environment:
       - DATABASE_URL=postgresql://user:password@db:5432/watcher_db
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      - db
-      - redis
+      - REDIS_HOST=watcher_redis
+      - PYTHONPATH=/app
+    # Encadenamos: 1º crea tablas, 2º arranca IA
+    command: sh -c "python scripts/init_db.py && python src/workers/main.py"
+    volumes:
+      - ./src:/app/src
+      - ./data/uploads:/app/data/uploads
+      - ./models:/app/models
 
 volumes:
   postgres_data:

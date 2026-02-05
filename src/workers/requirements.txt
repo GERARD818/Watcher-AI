@@ -1,0 +1,4 @@
+redis==5.3.2
+opencv-python-headless==4.8.1.78
+ultralytics==8.0.113  # torch CPU-only se instala automáticamente
+sqlmodel==0.0.8
